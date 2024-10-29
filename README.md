@@ -145,3 +145,41 @@ Scaling
 The fingerprint database records 2^20 (~1M) distinct fingerprints, with (by default) 100 entries for each fingerprint bucket.  When the bucket fills, track entries are dropped at random; since matching depends only on making a minimum number of matches, but no particular match, dropping some of the more popular ones does not prevent matching.  The Matlab version has been successfully used for databases of 100k+ tracks.  Reducing the hash density (`--density`) leads to smaller reference database size, and the capacity to record more reference items before buckets begin to fill; a density of 7.0 works well.
 
 Times (in units of 256 samples, i.e., 23 ms at the default 11kHz sampling rate) are stored in the bottom 14 bits of each database entry, meaning that times larger than 2^14*0.023 = 380 sec, or about 6 mins, are aliased.  If you want to correctly identify time offsets in tracks longer than this, you need to use a larger `--maxtimebits`; e.g. `--maxtimebits 16` increases the time range to 65,536 frames, or about 25 minutes at 11 kHz.  The trade-off is that the remaining bits in each 32 bit entry (i.e., 18 bits for the default 14 bit times) are used to store the track ID.  Thus, by default, the database can only remember 2^18 = 262k tracks; using a larger `--maxtimebits` will reduce this; similarly, you can increase the number of distinct tracks by reducing `--maxtimebits`, which doesn't prevent matching tracks, but progressively reduces discrimination as the number of distinct time slots reduces (and can make the reported time offsets, and time ranges for `--find-time-ranges`, completely wrong for longer tracks).
+
+Adding an entire folder and matching against it
+-----------------------------------------------
+
+```bash
+cd /path/to/lib/audfprint/
+
+# argv: ['audfprint.py', 'new', '--dbase', 'index.pklz', '--ncores', '6', '--continue-on-error', '--verbose', '3', '/Users/will/code/whatever/fixtures/']
+python audfprint.py new \
+    --dbase index.pklz \
+    --ncores 6 \
+    --continue-on-error \
+    --verbose 3 \
+    /Users/will/code/whatever/fixtures/
+
+# should match
+# argv: ['audfprint.py', 'match', '--dbase', 'index.pklz', '--opfile', 'match.txt', '/Users/will/code/whatever/fixtures/track.ogg']
+python audfprint.py match \
+    --dbase index.pklz \
+    --opfile match.txt \
+    "path/to/track.ogg"
+
+cat match.txt 
+# Thu Oct 24 12:06:03 2024 Reading hash table index.pklz
+# Matched path/to/track.ogg 229.2 sec 7972 raw hashes as /Users/will/code/whatever/fixtures/track.ogg at    0.0 s with  2675 of  3192 common hashes at rank  0
+
+# should not match
+python audfprint.py match \
+    --dbase index.pklz \
+    --opfile no_match.txt \
+    "/Users/will/Downloads/Adeva - In & Out of My Life (Rog-a-pella).mp3" \
+    "/Users/will/Downloads/deadmau5_Rob_Swire_-_Ghosts_n_Stuff_Acapella-4.aiff"
+
+cat no_match.txt 
+# Thu Oct 24 12:04:07 2024 Reading hash table index.pklz
+# NOMATCH /Users/will/Downloads/Adeva - In & Out of My Life (Rog-a-pella).mp3 251.5 sec 20869 raw hashes
+# NOMATCH /Users/will/Downloads/deadmau5_Rob_Swire_-_Ghosts_n_Stuff_Acapella-4.aiff 134.8 sec 5483 raw hashes
+```

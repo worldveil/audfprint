@@ -39,7 +39,13 @@ else:
 
 def filename_list_iterator(filelist, wavdir, wavext, listflag):
     """ Iterator to yeild all the filenames, possibly interpreting them
-        as list files, prepending wavdir """
+        as list files, prepending wavdir to each filename.
+    
+    filelist (list): list of filenames or a path to a file containing a list of filenames
+    wavdir (str): directory to prepend to each filename
+    wavext (str): extension to add to each filename
+    listflag (bool): flag to indicate if the filelist is a path to a file containing a list of filenames
+    """
     if not listflag:
         for filename in filelist:
             yield os.path.join(wavdir, filename + wavext)
@@ -389,6 +395,29 @@ Options:
 __version__ = 20150406
 
 
+def find_audio_files_recursively(folder_path, extensions=None):
+    """
+    Recursively search for audio files in the given folder.
+    
+    Args:
+    folder_path (str): Path to the folder to search in.
+    extensions (list): List of file extensions to look for. Defaults to common audio formats.
+    
+    Returns:
+    list: Absolute paths to all matched audio files.
+    """
+    if extensions is None:
+        extensions = ['.mp3', '.wav', '.aiff', '.flac', '.ogg', '.m4a', '.wma', '.aac']
+    
+    matched_files = []
+    for root, _, files in os.walk(folder_path):
+        for file in files:
+            if any(file.lower().endswith(ext) for ext in extensions):
+                matched_files.append(os.path.abspath(os.path.join(root, file)))
+    
+    return matched_files
+
+
 def main(argv):
     """ Main routine for the command-line interface to audfprint """
     # Other globals set from command line
@@ -462,8 +491,19 @@ def main(argv):
     # Create a matcher
     matcher = setup_matcher(args) if cmd == 'match' else None
 
-    filename_iter = filename_list_iterator(
-            args['<file>'], args['--wavdir'], args['--wavext'], args['--list'])
+    # find all audio files
+    filename_iter = []
+    for file_or_folder in args['<file>']:
+        if os.path.isdir(file_or_folder):
+            paths = find_audio_files_recursively(file_or_folder)
+        else:
+            paths = list(filename_list_iterator(
+                args['<file>'], args['--wavdir'], args['--wavext'], args['--list']))
+        
+        filename_iter.extend(paths)
+
+    filename_iter = list(set(filename_iter))  # deduplicate
+    print(f"Found {len(filename_iter)} audio files")
 
     #######################
     # Run the main commmand
@@ -502,3 +542,6 @@ def main(argv):
 # Run the main function if called from the command line
 if __name__ == "__main__":
     main(sys.argv)
+
+
+
